@@ -33,20 +33,21 @@ public class NfcManagerPlugin: NSObject, FlutterPlugin, HostApiPigeon {
   }
 
   func tagSessionInvalidate(alertMessage: String?, errorMessage: String?) throws {
-    guard let tagSession = tagSession else {
-      // Session is already invalidated or never started - this is not an error, just return silently
-      return
+    // Always clear the session reference, even if it's already nil
+    // This ensures clean state for the next session start
+    if let tagSession = tagSession {
+      if let alertMessage = alertMessage {
+        tagSession.alertMessage = alertMessage
+      }
+      if let errorMessage = errorMessage {
+        tagSession.invalidate(errorMessage: errorMessage)
+      } else {
+        tagSession.invalidate()
+      }
     }
-    if let alertMessage = alertMessage {
-      tagSession.alertMessage = alertMessage
-    }
-    if let errorMessage = errorMessage {
-      tagSession.invalidate(errorMessage: errorMessage)
-    } else {
-      tagSession.invalidate()
-    }
+    // Always clear references, even if session was already nil
     self.tagSession = nil
-    cachedTags.removeAll() // Consider when to remove the tag.
+    cachedTags.removeAll()
   }
 
   func tagSessionRestartPolling() throws {
@@ -79,18 +80,18 @@ public class NfcManagerPlugin: NSObject, FlutterPlugin, HostApiPigeon {
   }
 
   func vasSessionInvalidate(alertMessage: String?, errorMessage: String?) throws {
-    guard let vasSession = vasSession else {
-      // Session is already invalidated or never started - this is not an error, just return silently
-      return
+    // Always clear the session reference, even if it's already nil
+    if let vasSession = vasSession {
+      if let alertMessage = alertMessage {
+        vasSession.alertMessage = alertMessage
+      }
+      if let errorMessage = errorMessage {
+        vasSession.invalidate(errorMessage: errorMessage)
+      } else {
+        vasSession.invalidate()
+      }
     }
-    if let alertMessage = alertMessage {
-      vasSession.alertMessage = alertMessage
-    }
-    if let errorMessage = errorMessage {
-      vasSession.invalidate(errorMessage: errorMessage)
-    } else {
-      vasSession.invalidate()
-    }
+    // Always clear references, even if session was already nil
     self.vasSession = nil
   }
 
@@ -703,6 +704,9 @@ extension NfcManagerPlugin: NFCVASReaderSessionDelegate {
       code: convert((error as! NFCReaderError).code),
       message: error.localizedDescription
     )
+    // CRITICAL: Clear the session reference when iOS invalidates it
+    self.vasSession = nil
+    
     DispatchQueue.main.sync {
       flutterApi.vasSessionDidInvalidateWithError(error: pigeonError) { _ in /* no op */ }
     }
