@@ -640,6 +640,11 @@ extension NfcManagerPlugin: NFCTagReaderSessionDelegate {
       code: convert((error as! NFCReaderError).code),
       message: error.localizedDescription
     )
+    // CRITICAL: Clear the session reference when iOS invalidates it
+    // Without this, the next startSession call will fail with "session_already_exists"
+    self.tagSession = nil
+    cachedTags.removeAll()
+    
     DispatchQueue.main.sync {
       flutterApi.tagSessionDidInvalidateWithError(error: pigeonError) { _ in /* no op */ }
     }
