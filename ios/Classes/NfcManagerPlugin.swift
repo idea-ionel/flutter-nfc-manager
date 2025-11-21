@@ -34,7 +34,8 @@ public class NfcManagerPlugin: NSObject, FlutterPlugin, HostApiPigeon {
 
   func tagSessionInvalidate(alertMessage: String?, errorMessage: String?) throws {
     guard let tagSession = tagSession else {
-      throw FlutterError(code: "no_active_sessions", message: "Session is not active.", details: nil)
+      // Session is already invalidated or never started - this is not an error, just return silently
+      return
     }
     if let alertMessage = alertMessage {
       tagSession.alertMessage = alertMessage
@@ -79,7 +80,8 @@ public class NfcManagerPlugin: NSObject, FlutterPlugin, HostApiPigeon {
 
   func vasSessionInvalidate(alertMessage: String?, errorMessage: String?) throws {
     guard let vasSession = vasSession else {
-      throw FlutterError(code: "no_active_sessions", message: "Session is not active.", details: nil)
+      // Session is already invalidated or never started - this is not an error, just return silently
+      return
     }
     if let alertMessage = alertMessage {
       vasSession.alertMessage = alertMessage
@@ -753,6 +755,14 @@ private func convert(_ value: NFCNDEFTag, _ completionHandler: @escaping (TagPig
 
   value.queryNDEFStatus { status, capacity, error in
     if let error = error {
+      // Fix: If tag data already exists (ISO7816, MiFare, FeliCa, ISO15693), return it even if NDEF fails
+      if pigeon.iso7816 != nil || pigeon.miFare != nil || pigeon.feliCa != nil || pigeon.iso15693 != nil {
+        // Set NDEF as not supported, but still return tag data
+        pigeon.ndef = NdefPigeon(status: NdefStatusPigeon.notSupported, capacity: 0)
+        completionHandler(pigeon, nil)
+        return
+      }
+      // If no other tag data exists, return error
       completionHandler(nil, error)
       return
     }
@@ -766,6 +776,12 @@ private func convert(_ value: NFCNDEFTag, _ completionHandler: @escaping (TagPig
     }
     value.readNDEF { message, error in
       if let error = error {
+        // Fix: If tag data already exists, return it even if NDEF read fails
+        if pigeon.iso7816 != nil || pigeon.miFare != nil || pigeon.feliCa != nil || pigeon.iso15693 != nil {
+          completionHandler(pigeon, nil)
+          return
+        }
+        // If no other tag data exists, return error
         completionHandler(nil, error)
         return
       }
